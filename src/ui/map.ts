@@ -2,6 +2,15 @@ import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import type { LatLng, AnnotatedCharger } from '../types'
 
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
 export class MapController {
   private map: L.Map
   private routeLayer = L.layerGroup()
@@ -46,7 +55,7 @@ export class MapController {
         weight: 2,
       })
       marker.bindPopup(
-        `<b>${c.name}</b><br>${c.maxPowerKw} kW · +${c.detourMiles.toFixed(1)} mi off route` +
+        `<b>${escapeHtml(c.name)}</b><br>${c.maxPowerKw} kW · +${c.detourMiles.toFixed(1)} mi off route` +
           `<br><button data-toggle="${c.id}">${selected ? 'Remove stop' : 'Add stop'}</button>`,
       )
       marker.on('popupopen', () => {
