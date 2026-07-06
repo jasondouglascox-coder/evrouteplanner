@@ -24,6 +24,9 @@ describe('milesPerPercentForSpeed', () => {
   it('clamps above the highest speed', () => {
     expect(milesPerPercentForSpeed(table, 95)).toBe(2.15)
   })
+  it('throws on an empty efficiency table', () => {
+    expect(() => milesPerPercentForSpeed([], 70)).toThrow()
+  })
 })
 
 describe('legRangeMiles', () => {
@@ -44,5 +47,11 @@ describe('evaluateLegs', () => {
     expect(statuses[1].exceeds).toBe(false) // 150 < 178.5
     expect(statuses[2].exceeds).toBe(true) // 190 > 178.5
     expect(statuses[2].rangeMiles).toBeCloseTo(178.5, 5)
+  })
+  it('does not flag a leg exactly equal to available range', () => {
+    // first-leg range = (100-10)*2.55 = 229.5
+    const rangeMiles = (cfg.startPct - cfg.reservePct) * 2.55
+    const statuses = evaluateLegs([rangeMiles], 2.55, cfg)
+    expect(statuses[0].exceeds).toBe(false)
   })
 })
