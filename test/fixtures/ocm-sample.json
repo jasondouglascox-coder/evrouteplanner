@@ -1,0 +1,26 @@
+[
+  {
+    "ID": 101,
+    "AddressInfo": { "Title": "Baker City", "Latitude": 44.77, "Longitude": -117.83 },
+    "OperatorInfo": { "Title": "Electrify America" },
+    "Connections": [{ "PowerKW": 350 }, { "PowerKW": 150 }]
+  },
+  {
+    "ID": 102,
+    "AddressInfo": { "Title": "Some EVgo Site", "Latitude": 44.9, "Longitude": -117.9 },
+    "OperatorInfo": { "Title": "EVgo" },
+    "Connections": [{ "PowerKW": 350 }]
+  },
+  {
+    "ID": 103,
+    "AddressInfo": { "Title": "EA Low Power", "Latitude": 45.0, "Longitude": -118.0 },
+    "OperatorInfo": { "Title": "Electrify America" },
+    "Connections": [{ "PowerKW": 150 }]
+  },
+  {
+    "ID": 101,
+    "AddressInfo": { "Title": "Baker City (dup)", "Latitude": 44.77, "Longitude": -117.83 },
+    "OperatorInfo": { "Title": "Electrify America" },
+    "Connections": [{ "PowerKW": 350 }]
+  }
+]
