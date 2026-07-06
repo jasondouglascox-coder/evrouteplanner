@@ -63,7 +63,7 @@ export class MapController {
         btn?.addEventListener('click', () => {
           onToggle(c.id)
           this.map.closePopup()
-        })
+        }, { once: true })
       })
       marker.addTo(this.chargerLayer)
     }

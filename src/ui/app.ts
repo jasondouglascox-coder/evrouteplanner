@@ -301,12 +301,18 @@ export class App {
     const numberField = (label: string, value: number, onChange: (v: number) => void) => {
       const row = document.createElement('div')
       row.className = 'row'
-      // label is a hardcoded string literal from this file, not untrusted input.
-      row.innerHTML = `<span style="flex:1">${label}</span>`
+      const lbl = document.createElement('span')
+      lbl.style.flex = '1'
+      lbl.textContent = label
+      row.appendChild(lbl)
       const inp = document.createElement('input')
       inp.type = 'number'
       inp.value = String(value)
-      inp.addEventListener('change', () => onChange(parseFloat(inp.value)))
+      inp.addEventListener('change', () => {
+        const v = parseFloat(inp.value)
+        if (Number.isFinite(v)) onChange(v)
+        else inp.value = String(value)
+      })
       row.appendChild(inp)
       return row
     }

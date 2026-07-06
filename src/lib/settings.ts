@@ -40,11 +40,11 @@ const STORAGE_KEY = 'ev-map-settings'
 
 export function loadSettings(storage: Storage = localStorage): Settings {
   const raw = storage.getItem(STORAGE_KEY)
-  if (!raw) return { ...DEFAULT_SETTINGS }
+  if (!raw) return structuredClone(DEFAULT_SETTINGS)
   try {
-    return { ...DEFAULT_SETTINGS, ...(JSON.parse(raw) as Partial<Settings>) }
+    return structuredClone({ ...DEFAULT_SETTINGS, ...(JSON.parse(raw) as Partial<Settings>) })
   } catch {
-    return { ...DEFAULT_SETTINGS }
+    return structuredClone(DEFAULT_SETTINGS)
   }
 }
 

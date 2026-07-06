@@ -20,3 +20,9 @@ details { margin-top: 12px; } summary { cursor: pointer; font-weight: 600; }
 .row { display: flex; gap: 6px; align-items: center; }
 .row input { width: 70px; }
 .notice { background: #fef2f2; color: #991b1b; padding: 8px; border-radius: 6px; font-size: 13px; margin: 6px 0; }
+
+@media (max-width: 640px) {
+  #layout { flex-direction: column; }
+  #map { height: 55vh; flex: none; width: 100%; }
+  #sidebar { width: 100%; min-width: 0; max-height: 45vh; border-right: none; border-top: 1px solid #e5e7eb; }
+}

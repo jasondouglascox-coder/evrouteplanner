@@ -46,4 +46,14 @@ describe('settings', () => {
     storage.setItem('ev-map-settings', 'not json')
     expect(loadSettings(storage).minPowerKw).toBe(350)
   })
+
+  it('does not share references with module defaults (mutating loaded settings is isolated)', () => {
+    const storage = memoryStorage()
+    const a = loadSettings(storage)
+    a.range.startPct = 42
+    a.efficiency[0].milesPerPercent = 99
+    const b = loadSettings(storage)
+    expect(b.range.startPct).toBe(100)      // default preserved
+    expect(b.efficiency[0].milesPerPercent).not.toBe(99)
+  })
 })
