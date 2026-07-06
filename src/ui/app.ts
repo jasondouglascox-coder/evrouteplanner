@@ -59,6 +59,13 @@ export class App {
       this.render()
       return
     }
+    // clear stale chargers/selection so nothing from the previous route can be
+    // interacted with (and bump the generation) while this fetch is in flight
+    this.chargers = []
+    this.selected.clear()
+    this.tripRoute = null
+    this.map.setChargers([], this.selected, (id) => this.toggleCharger(id))
+    this.render()
     try {
       const base = await fetchRoute([this.origin, this.destination], this.settings.orsKey)
       if (gen !== this.generation) return
