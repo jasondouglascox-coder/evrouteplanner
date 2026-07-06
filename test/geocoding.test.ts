@@ -27,7 +27,9 @@ describe('parsePhoton', () => {
 })
 
 describe('searchAddress', () => {
-  afterEach(() => vi.unstubAllGlobals())
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
 
   it('returns [] for a query under 3 chars and does not call fetch', async () => {
     const f = vi.fn()

@@ -36,7 +36,9 @@ describe('dedupeChargers', () => {
 })
 
 describe('fetchChargersAlongRoute', () => {
-  afterEach(() => vi.unstubAllGlobals())
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
 
   it('skips failed samples and returns successful ones', async () => {
     const eaPoi = { ID: 201, AddressInfo: { Title: 'EA Site', Latitude: 44, Longitude: -117 }, OperatorInfo: { Title: 'Electrify America' }, Connections: [{ PowerKW: 350 }] }
