@@ -1,15 +1,26 @@
-import type { GeoResult, AnnotatedCharger, TripStop, Route } from '../types'
+import type { GeoResult, TripStop, Route } from '../types'
 
 const METERS_PER_MILE = 1609.344
+
+// An intermediate stop between origin and destination — either a manual
+// waypoint (no chargerId) or a chosen charger (chargerId set). Ordered along
+// the route by routePositionMeters.
+export interface OrderedIntermediate {
+  label: string
+  lat: number
+  lng: number
+  routePositionMeters: number
+  chargerId?: string
+}
 
 export function orderStops(
   origin: GeoResult,
   destination: GeoResult,
-  chosen: AnnotatedCharger[],
+  intermediates: OrderedIntermediate[],
 ): TripStop[] {
-  const mids: TripStop[] = [...chosen]
+  const mids: TripStop[] = [...intermediates]
     .sort((a, b) => a.routePositionMeters - b.routePositionMeters)
-    .map((c) => ({ label: c.name, lat: c.lat, lng: c.lng, chargerId: c.id }))
+    .map((i) => ({ label: i.label, lat: i.lat, lng: i.lng, chargerId: i.chargerId }))
   return [
     { label: origin.label, lat: origin.lat, lng: origin.lng },
     ...mids,

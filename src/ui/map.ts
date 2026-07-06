@@ -85,6 +85,11 @@ export class MapController {
           gapLine +
           `<br><button data-toggle="${c.id}">${selected ? 'Remove' : 'Select'}</button>`,
       )
+      // Hover tooltip so the key info (distance from last green stop) is visible
+      // without clicking. Click still opens the popup with the Select button.
+      const tipParts = [escapeHtml(c.name), `${c.maxPowerKw} kW`]
+      if (gap !== undefined) tipParts.push(`${gap.toFixed(0)} mi from last stop`)
+      marker.bindTooltip(tipParts.join(' · '), { direction: 'top', offset: [0, -4] })
       marker.on('popupopen', () => {
         const btn = document.querySelector<HTMLButtonElement>(`button[data-toggle="${c.id}"]`)
         btn?.addEventListener('click', () => { onToggle(c.id); this.map.closePopup() }, { once: true })

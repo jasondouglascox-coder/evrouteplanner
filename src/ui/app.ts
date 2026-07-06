@@ -4,7 +4,7 @@ import { searchAddress } from '../lib/geocoding'
 import { fetchRoute } from '../lib/routing'
 import { fetchChargersAlongRoute } from '../lib/chargers'
 import { samplePolyline, pointToPolyline, metersToMiles } from '../lib/geometry'
-import { orderStops, perLegMiles, gapFromLastGreenMeters } from '../lib/trip'
+import { orderStops, perLegMiles, gapFromLastGreenMeters, type OrderedIntermediate } from '../lib/trip'
 import { milesPerPercentForSpeed, evaluateLegs } from '../lib/range'
 import { googleMapsUrl, appleMapsUrl, waypointWarning } from '../lib/deeplink'
 import { loadSettings, saveSettings, type Settings } from '../lib/settings'
@@ -27,11 +27,15 @@ export class App {
   private map!: MapController
   private origin: GeoResult | null = null
   private destination: GeoResult | null = null
+  // Manual intermediate waypoints (like Google Maps "add stop"). A null slot is
+  // an added-but-not-yet-picked input row.
+  private manualStops: (GeoResult | null)[] = []
   private chargers: AnnotatedCharger[] = []
   private selected = new Set<string>()
   private tripRoute: Route | null = null
   private baseRoute: Route | null = null
   private notice = ''
+  private loading = false
   private generation = 0
 
   constructor(private root: HTMLElement) {
@@ -50,6 +54,28 @@ export class App {
 
   // ---- data flow ----
 
+  // Ordered geocoded waypoints for the base route: origin, any picked manual
+  // stops, destination.
+  private baseWaypoints(): GeoResult[] {
+    const picked = this.manualStops.filter((s): s is GeoResult => s !== null)
+    return [this.origin as GeoResult, ...picked, this.destination as GeoResult]
+  }
+
+  // Intermediate stops (manual waypoints + selected chargers) positioned along
+  // the base route, for ordering and for the final multi-stop route.
+  private buildIntermediates(): OrderedIntermediate[] {
+    const poly = this.baseRoute?.coordinates ?? []
+    const posOf = (lat: number, lng: number) =>
+      poly.length ? pointToPolyline({ lat, lng }, poly).alongMeters : 0
+    const manual: OrderedIntermediate[] = this.manualStops
+      .filter((s): s is GeoResult => s !== null)
+      .map((s) => ({ label: s.label, lat: s.lat, lng: s.lng, routePositionMeters: posOf(s.lat, s.lng) }))
+    const chargers: OrderedIntermediate[] = this.chargers
+      .filter((c) => this.selected.has(c.id))
+      .map((c) => ({ label: c.name, lat: c.lat, lng: c.lng, chargerId: c.id, routePositionMeters: c.routePositionMeters }))
+    return [...manual, ...chargers]
+  }
+
   private async recomputeBaseRoute(): Promise<void> {
     const gen = ++this.generation
     this.notice = ''
@@ -64,10 +90,11 @@ export class App {
     this.chargers = []
     this.selected.clear()
     this.tripRoute = null
+    this.loading = true
     this.map.setChargers([], this.selected, {}, (id) => this.toggleCharger(id), (id) => this.highlightRow(id))
     this.render()
     try {
-      const base = await fetchRoute([this.origin, this.destination], this.settings.orsKey)
+      const base = await fetchRoute(this.baseWaypoints(), this.settings.orsKey)
       if (gen !== this.generation) return
       this.baseRoute = base
       this.map.setRoute(base.coordinates)
@@ -93,6 +120,7 @@ export class App {
       await this.recomputeTripRoute()
     } catch (e) {
       if (gen !== this.generation) return
+      this.loading = false
       this.notice = `Could not load route/chargers: ${(e as Error).message}`
       this.render()
     }
@@ -102,22 +130,34 @@ export class App {
     const gen = ++this.generation
     this.notice = ''
     this.tripRoute = null
+    this.loading = true
+    // Reflect the selection/loading state immediately, before the (async) route.
+    this.paintChargers()
+    this.render()
     if (this.origin && this.destination && this.selected.size > 0) {
-      const chosen = this.chargers.filter((c) => this.selected.has(c.id))
-      const stops = orderStops(this.origin, this.destination, chosen)
+      const stops = orderStops(this.origin, this.destination, this.buildIntermediates())
       try {
         const route = await fetchRoute(stops, this.settings.orsKey)
         if (gen !== this.generation) return
         this.tripRoute = route
-        this.map.setRoute(this.tripRoute.coordinates)
+        this.map.setRoute(route.coordinates)
       } catch (e) {
         if (gen !== this.generation) return
         this.notice = `Could not route with stops: ${(e as Error).message}`
       }
     } else if (this.origin && this.destination) {
-      // no stops chosen: redraw the base origin->destination route
+      // no chargers chosen: the base route already runs through any manual stops
+      this.tripRoute = this.baseRoute
       this.map.setRoute(this.baseRoute?.coordinates ?? [])
     }
+    if (gen !== this.generation) return
+    this.loading = false
+    this.paintChargers()
+    this.render()
+  }
+
+  // Push current chargers + gap distances to the map.
+  private paintChargers(): void {
     const gapMeters = gapFromLastGreenMeters(this.chargers, this.selected)
     const gapMilesById: Record<string, number> = {}
     for (const id in gapMeters) gapMilesById[id] = metersToMiles(gapMeters[id])
@@ -128,7 +168,6 @@ export class App {
       (id) => this.toggleCharger(id),
       (id) => this.highlightRow(id),
     )
-    this.render()
   }
 
   // Highlight the side-panel row for a charger (driven by map-marker hover).
@@ -153,8 +192,7 @@ export class App {
 
   private orderedStops(): TripStop[] {
     if (!this.origin || !this.destination) return []
-    const chosen = this.chargers.filter((c) => this.selected.has(c.id))
-    return orderStops(this.origin, this.destination, chosen)
+    return orderStops(this.origin, this.destination, this.buildIntermediates())
   }
 
   // ---- rendering ----
@@ -163,6 +201,12 @@ export class App {
     const sidebar = document.getElementById('sidebar')!
     sidebar.innerHTML = ''
     sidebar.appendChild(this.renderInputs())
+    if (this.loading) {
+      const l = document.createElement('div')
+      l.className = 'loading'
+      l.innerHTML = '<span class="spinner"></span> Updating route…'
+      sidebar.appendChild(l)
+    }
     if (this.notice) {
       const n = document.createElement('div')
       n.className = 'notice'
@@ -180,6 +224,39 @@ export class App {
       this.origin = r
       void this.recomputeBaseRoute()
     }))
+
+    // Manual intermediate stops, each with a remove button.
+    this.manualStops.forEach((stop, i) => {
+      const row = document.createElement('div')
+      row.className = 'stop-row'
+      const field = this.makeAddressInput(`Stop ${i + 1}`, stop, (r) => {
+        this.manualStops[i] = r
+        void this.recomputeBaseRoute()
+      })
+      field.style.flex = '1'
+      const remove = document.createElement('button')
+      remove.className = 'remove-stop'
+      remove.textContent = '✕'
+      remove.title = 'Remove stop'
+      remove.addEventListener('click', () => {
+        const had = this.manualStops[i] !== null
+        this.manualStops.splice(i, 1)
+        if (had) void this.recomputeBaseRoute()
+        else this.render()
+      })
+      row.append(field, remove)
+      wrap.appendChild(row)
+    })
+
+    const addBtn = document.createElement('button')
+    addBtn.className = 'add-stop'
+    addBtn.textContent = '+ Add stop'
+    addBtn.addEventListener('click', () => {
+      this.manualStops.push(null)
+      this.render()
+    })
+    wrap.appendChild(addBtn)
+
     wrap.appendChild(this.makeAddressInput('Destination (B)', this.destination, (r) => {
       this.destination = r
       void this.recomputeBaseRoute()
@@ -243,7 +320,8 @@ export class App {
       stop.className = 'trip-stop'
       // NOTE: stop labels are placed via .textContent, which is already safe
       // against HTML injection — no escaping needed here.
-      stop.textContent = `${i === 0 ? '📍' : i === stops.length - 1 ? '🏁' : '⚡'} ${s.label}`
+      const icon = i === 0 ? '📍' : i === stops.length - 1 ? '🏁' : s.chargerId ? '⚡' : '📍'
+      stop.textContent = `${icon} ${s.label}`
       wrap.appendChild(stop)
       if (i < stops.length - 1 && statuses[i]) {
         const leg = document.createElement('div')
