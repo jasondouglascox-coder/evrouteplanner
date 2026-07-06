@@ -1,0 +1,23 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "segments": [
+          { "distance": 154800.0, "duration": 5400.0 },
+          { "distance": 212300.0, "duration": 7600.0 }
+        ],
+        "summary": { "distance": 367100.0, "duration": 13000.0 }
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-122.35, 45.58],
+          [-117.83, 44.77],
+          [-111.89, 40.76]
+        ]
+      }
+    }
+  ]
+}
