@@ -1,0 +1,12 @@
+{
+  "features": [
+    {
+      "geometry": { "coordinates": [-122.3543, 45.5829] },
+      "properties": { "name": "Washougal", "state": "Washington", "country": "United States" }
+    },
+    {
+      "geometry": { "coordinates": [-111.891, 40.7608] },
+      "properties": { "name": "Salt Lake City", "state": "Utah", "country": "United States" }
+    }
+  ]
+}
