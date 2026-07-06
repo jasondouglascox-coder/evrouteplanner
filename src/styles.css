@@ -23,6 +23,6 @@ details { margin-top: 12px; } summary { cursor: pointer; font-weight: 600; }
 
 @media (max-width: 640px) {
   #layout { flex-direction: column; }
-  #map { height: 55vh; flex: none; width: 100%; }
+  #map { order: -1; height: 55vh; flex: none; width: 100%; }
   #sidebar { width: 100%; min-width: 0; max-height: 45vh; border-right: none; border-top: 1px solid #e5e7eb; }
 }
