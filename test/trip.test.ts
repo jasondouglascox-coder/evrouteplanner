@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { orderStops, perLegMiles } from '../src/lib/trip'
+import { orderStops, perLegMiles, gapFromLastGreenMeters } from '../src/lib/trip'
 import type { AnnotatedCharger, GeoResult, Route } from '../src/types'
 
 const origin: GeoResult = { label: 'Washougal', lat: 45.58, lng: -122.35 }
@@ -28,5 +28,32 @@ describe('perLegMiles', () => {
       totalMeters: 482803.2,
     }
     expect(perLegMiles(route)).toEqual([100, 200])
+  })
+})
+
+describe('gapFromLastGreenMeters', () => {
+  const cs = [
+    { id: 'a', routePositionMeters: 100 },
+    { id: 'b', routePositionMeters: 250 },
+    { id: 'c', routePositionMeters: 400 },
+  ]
+
+  it('measures from the origin (position 0) when nothing is selected', () => {
+    const g = gapFromLastGreenMeters(cs, new Set())
+    expect(g).toEqual({ a: 100, b: 250, c: 400 })
+  })
+
+  it('measures each charger from the last selected (green) charger before it', () => {
+    const g = gapFromLastGreenMeters(cs, new Set(['b']))
+    expect(g.a).toBe(100) // still from origin (before b)
+    expect(g.b).toBe(250) // b measured from origin (leg to reach it)
+    expect(g.c).toBe(150) // c measured from b (400 - 250)
+  })
+
+  it('a selected charger reports the leg length from the prior green point', () => {
+    const g = gapFromLastGreenMeters(cs, new Set(['a', 'c']))
+    expect(g.a).toBe(100) // from origin
+    expect(g.b).toBe(150) // b (unselected) from a
+    expect(g.c).toBe(300) // c from a (400 - 100), since b is not green
   })
 })

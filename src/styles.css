@@ -10,6 +10,7 @@ html, body, #app { height: 100%; margin: 0; font-family: system-ui, sans-serif; 
 .autocomplete div:hover { background: #eff6ff; }
 .charger { padding: 8px; border: 1px solid #e5e7eb; border-radius: 6px; margin: 6px 0; cursor: pointer; font-size: 13px; background: #fff; }
 .charger.selected { border-color: #16a34a; background: #f0fdf4; }
+.charger.hover { border-color: #2563eb; box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.3); }
 .charger .meta { color: #6b7280; font-size: 12px; }
 .warn { color: #dc2626; font-weight: 600; }
 .leg { color: #059669; font-size: 12px; }

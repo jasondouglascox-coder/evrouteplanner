@@ -4,7 +4,7 @@ import { searchAddress } from '../lib/geocoding'
 import { fetchRoute } from '../lib/routing'
 import { fetchChargersAlongRoute } from '../lib/chargers'
 import { samplePolyline, pointToPolyline, metersToMiles } from '../lib/geometry'
-import { orderStops, perLegMiles } from '../lib/trip'
+import { orderStops, perLegMiles, gapFromLastGreenMeters } from '../lib/trip'
 import { milesPerPercentForSpeed, evaluateLegs } from '../lib/range'
 import { googleMapsUrl, appleMapsUrl, waypointWarning } from '../lib/deeplink'
 import { loadSettings, saveSettings, type Settings } from '../lib/settings'
@@ -64,13 +64,14 @@ export class App {
     this.chargers = []
     this.selected.clear()
     this.tripRoute = null
-    this.map.setChargers([], this.selected, (id) => this.toggleCharger(id))
+    this.map.setChargers([], this.selected, {}, (id) => this.toggleCharger(id), (id) => this.highlightRow(id))
     this.render()
     try {
       const base = await fetchRoute([this.origin, this.destination], this.settings.orsKey)
       if (gen !== this.generation) return
       this.baseRoute = base
       this.map.setRoute(base.coordinates)
+      this.map.setEndpoints(this.origin, this.destination)
       this.map.fitToRoute()
       const samples = samplePolyline(base.coordinates, this.settings.sampleEveryMiles * MILES_TO_METERS)
       const raw = await fetchChargersAlongRoute(samples, this.settings.ocmKey, {
@@ -117,8 +118,31 @@ export class App {
       // no stops chosen: redraw the base origin->destination route
       this.map.setRoute(this.baseRoute?.coordinates ?? [])
     }
-    this.map.setChargers(this.chargers, this.selected, (id) => this.toggleCharger(id))
+    const gapMeters = gapFromLastGreenMeters(this.chargers, this.selected)
+    const gapMilesById: Record<string, number> = {}
+    for (const id in gapMeters) gapMilesById[id] = metersToMiles(gapMeters[id])
+    this.map.setChargers(
+      this.chargers,
+      this.selected,
+      gapMilesById,
+      (id) => this.toggleCharger(id),
+      (id) => this.highlightRow(id),
+    )
     this.render()
+  }
+
+  // Highlight the side-panel row for a charger (driven by map-marker hover).
+  private highlightRow(id: string | null): void {
+    const sidebar = document.getElementById('sidebar')
+    if (!sidebar) return
+    sidebar.querySelectorAll('.charger.hover').forEach((el) => el.classList.remove('hover'))
+    if (id) {
+      const row = sidebar.querySelector<HTMLElement>(`[data-charger-id="${CSS.escape(id)}"]`)
+      if (row) {
+        row.classList.add('hover')
+        row.scrollIntoView({ block: 'nearest' })
+      }
+    }
   }
 
   private toggleCharger(id: string): void {
@@ -277,6 +301,7 @@ export class App {
       prevPos = c.routePositionMeters
       const row = document.createElement('div')
       row.className = 'charger' + (this.selected.has(c.id) ? ' selected' : '')
+      row.dataset.chargerId = c.id
       // SECURITY: c.name comes from the untrusted OpenChargeMap API and is
       // interpolated into innerHTML — it must be HTML-escaped. Numeric fields
       // (detourMiles, gapMiles, maxPowerKw) are safe as-is.
@@ -284,6 +309,8 @@ export class App {
         `<div>${this.selected.has(c.id) ? '✅ ' : '⚡ '}${escapeHtml(c.name)}</div>` +
         `<div class="meta">+${c.detourMiles.toFixed(1)} mi off route · ${gapMiles.toFixed(0)} mi since previous · ${c.maxPowerKw} kW</div>`
       row.addEventListener('click', () => this.toggleCharger(c.id))
+      row.addEventListener('mouseenter', () => this.map.highlightCharger(c.id))
+      row.addEventListener('mouseleave', () => this.map.highlightCharger(null))
       wrap.appendChild(row)
     }
     return wrap
