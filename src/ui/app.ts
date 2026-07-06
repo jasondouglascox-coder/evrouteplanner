@@ -30,7 +30,9 @@ export class App {
   private chargers: AnnotatedCharger[] = []
   private selected = new Set<string>()
   private tripRoute: Route | null = null
+  private baseRoute: Route | null = null
   private notice = ''
+  private generation = 0
 
   constructor(private root: HTMLElement) {
     this.settings = loadSettings()
@@ -49,6 +51,7 @@ export class App {
   // ---- data flow ----
 
   private async recomputeBaseRoute(): Promise<void> {
+    const gen = ++this.generation
     this.notice = ''
     if (!this.origin || !this.destination) return
     if (!this.settings.orsKey || !this.settings.ocmKey) {
@@ -58,6 +61,8 @@ export class App {
     }
     try {
       const base = await fetchRoute([this.origin, this.destination], this.settings.orsKey)
+      if (gen !== this.generation) return
+      this.baseRoute = base
       this.map.setRoute(base.coordinates)
       this.map.fitToRoute()
       const samples = samplePolyline(base.coordinates, this.settings.sampleEveryMiles * MILES_TO_METERS)
@@ -67,6 +72,7 @@ export class App {
         radiusMiles: this.settings.radiusMiles,
         maxPerSample: 50,
       })
+      if (gen !== this.generation) return
       this.chargers = raw
         .map((c) => {
           const { distanceMeters, alongMeters } = pointToPolyline({ lat: c.lat, lng: c.lng }, base.coordinates)
@@ -78,24 +84,31 @@ export class App {
       this.selected = new Set([...this.selected].filter((id) => this.chargers.some((c) => c.id === id)))
       await this.recomputeTripRoute()
     } catch (e) {
+      if (gen !== this.generation) return
       this.notice = `Could not load route/chargers: ${(e as Error).message}`
       this.render()
     }
   }
 
   private async recomputeTripRoute(): Promise<void> {
+    const gen = ++this.generation
+    this.notice = ''
     this.tripRoute = null
     if (this.origin && this.destination && this.selected.size > 0) {
       const chosen = this.chargers.filter((c) => this.selected.has(c.id))
       const stops = orderStops(this.origin, this.destination, chosen)
       try {
-        this.tripRoute = await fetchRoute(stops, this.settings.orsKey)
+        const route = await fetchRoute(stops, this.settings.orsKey)
+        if (gen !== this.generation) return
+        this.tripRoute = route
         this.map.setRoute(this.tripRoute.coordinates)
       } catch (e) {
+        if (gen !== this.generation) return
         this.notice = `Could not route with stops: ${(e as Error).message}`
       }
     } else if (this.origin && this.destination) {
-      // no stops chosen: keep base route already drawn
+      // no stops chosen: redraw the base origin->destination route
+      this.map.setRoute(this.baseRoute?.coordinates ?? [])
     }
     this.map.setChargers(this.chargers, this.selected, (id) => this.toggleCharger(id))
     this.render()
