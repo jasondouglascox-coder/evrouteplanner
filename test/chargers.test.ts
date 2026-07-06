@@ -1,7 +1,7 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi, afterEach } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { mapPoi, filterChargers, dedupeChargers, type OcmPoi } from '../src/lib/chargers'
+import { mapPoi, filterChargers, dedupeChargers, fetchChargersAlongRoute, type OcmPoi } from '../src/lib/chargers'
 
 const fixture: OcmPoi[] = JSON.parse(
   readFileSync(fileURLToPath(new URL('./fixtures/ocm-sample.json', import.meta.url)), 'utf-8'),
@@ -32,5 +32,39 @@ describe('dedupeChargers', () => {
     const filtered = filterChargers(fixture, { networkContains: 'Electrify America', minPowerKw: 350 })
     const deduped = dedupeChargers(filtered)
     expect(deduped.filter((c) => c.id === '101').length).toBe(1)
+  })
+})
+
+describe('fetchChargersAlongRoute', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('skips failed samples and returns successful ones', async () => {
+    const eaPoi = { ID: 201, AddressInfo: { Title: 'EA Site', Latitude: 44, Longitude: -117 }, OperatorInfo: { Title: 'Electrify America' }, Connections: [{ PowerKW: 350 }] }
+    const opts = { networkContains: 'Electrify America', minPowerKw: 350, radiusMiles: 30, maxPerSample: 50 }
+    const samples = [{ lat: 44, lng: -117 }, { lat: 45, lng: -118 }]
+
+    vi.stubGlobal('fetch', vi.fn()
+      .mockResolvedValueOnce({ ok: true, json: async () => [eaPoi] })
+      .mockResolvedValueOnce({ ok: false })
+    )
+
+    const result = await fetchChargersAlongRoute(samples, 'test-key', opts)
+    expect(result).toHaveLength(1)
+    expect(result[0].id).toBe('201')
+  })
+
+  it('dedupes results across samples', async () => {
+    const eaPoi = { ID: 201, AddressInfo: { Title: 'EA Site', Latitude: 44, Longitude: -117 }, OperatorInfo: { Title: 'Electrify America' }, Connections: [{ PowerKW: 350 }] }
+    const opts = { networkContains: 'Electrify America', minPowerKw: 350, radiusMiles: 30, maxPerSample: 50 }
+    const samples = [{ lat: 44, lng: -117 }, { lat: 45, lng: -118 }]
+
+    vi.stubGlobal('fetch', vi.fn()
+      .mockResolvedValueOnce({ ok: true, json: async () => [eaPoi] })
+      .mockResolvedValueOnce({ ok: true, json: async () => [eaPoi] })
+    )
+
+    const result = await fetchChargersAlongRoute(samples, 'test-key', opts)
+    expect(result).toHaveLength(1)
+    expect(result[0].id).toBe('201')
   })
 })
