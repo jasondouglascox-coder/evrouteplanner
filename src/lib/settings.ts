@@ -15,7 +15,7 @@ export interface Settings {
   range: RangeConfig
   planningSpeed: number
   minPowerKw: number
-  networkContains: string
+  operatorIds: number[]
   maxDetourMiles: number
   radiusMiles: number
   sampleEveryMiles: number
@@ -28,7 +28,7 @@ export const DEFAULT_SETTINGS: Settings = {
   range: DEFAULT_RANGE,
   planningSpeed: 70,
   minPowerKw: 350,
-  networkContains: 'Electrify America',
+  operatorIds: [3318, 3400], // Electrify America + Electrify Canada
   maxDetourMiles: 5,
   radiusMiles: 30,
   sampleEveryMiles: 40,

@@ -74,7 +74,7 @@ export class App {
       this.map.fitToRoute()
       const samples = samplePolyline(base.coordinates, this.settings.sampleEveryMiles * MILES_TO_METERS)
       const raw = await fetchChargersAlongRoute(samples, this.settings.ocmKey, {
-        networkContains: this.settings.networkContains,
+        operatorIds: this.settings.operatorIds,
         minPowerKw: this.settings.minPowerKw,
         radiusMiles: this.settings.radiusMiles,
         maxPerSample: 50,
@@ -352,8 +352,16 @@ export class App {
     const save = document.createElement('button')
     save.className = 'btn'
     save.textContent = 'Save settings'
+    let savedTimer: ReturnType<typeof setTimeout> | undefined
     save.addEventListener('click', () => {
       saveSettings(this.settings)
+      save.textContent = 'Saved ✓'
+      save.classList.add('saved')
+      clearTimeout(savedTimer)
+      savedTimer = setTimeout(() => {
+        save.textContent = 'Save settings'
+        save.classList.remove('saved')
+      }, 1800)
       void this.recomputeBaseRoute()
     })
     body.appendChild(save)

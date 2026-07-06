@@ -8,19 +8,20 @@ const fixture: OcmPoi[] = JSON.parse(
 )
 
 describe('mapPoi', () => {
-  it('takes the max connector power', () => {
+  it('takes the max connector power and resolves operator name from id', () => {
     const c = mapPoi(fixture[0])
     expect(c.maxPowerKw).toBe(350)
+    expect(c.operatorId).toBe(3318)
     expect(c.network).toBe('Electrify America')
     expect(c.id).toBe('101')
   })
 })
 
 describe('filterChargers', () => {
-  it('keeps only EA stations at or above min power', () => {
-    const result = filterChargers(fixture, { networkContains: 'Electrify America', minPowerKw: 350 })
-    // fixture EA >=350: ID 101 (twice); excludes EVgo (102) and EA-150 (103)
-    expect(result.every((c) => c.network === 'Electrify America')).toBe(true)
+  it('keeps only allowed-operator stations at or above min power', () => {
+    const result = filterChargers(fixture, { operatorIds: [3318], minPowerKw: 350 })
+    // EA (3318) >=350: ID 101 (twice); excludes EVgo op 15 (102) and EA-150 (103)
+    expect(result.every((c) => c.operatorId === 3318)).toBe(true)
     expect(result.every((c) => c.maxPowerKw >= 350)).toBe(true)
     expect(result.some((c) => c.id === '102')).toBe(false)
     expect(result.some((c) => c.id === '103')).toBe(false)
@@ -29,7 +30,7 @@ describe('filterChargers', () => {
 
 describe('dedupeChargers', () => {
   it('removes duplicate ids', () => {
-    const filtered = filterChargers(fixture, { networkContains: 'Electrify America', minPowerKw: 350 })
+    const filtered = filterChargers(fixture, { operatorIds: [3318], minPowerKw: 350 })
     const deduped = dedupeChargers(filtered)
     expect(deduped.filter((c) => c.id === '101').length).toBe(1)
   })
@@ -40,11 +41,11 @@ describe('fetchChargersAlongRoute', () => {
     vi.unstubAllGlobals()
   })
 
-  it('skips failed samples and returns successful ones', async () => {
-    const eaPoi = { ID: 201, AddressInfo: { Title: 'EA Site', Latitude: 44, Longitude: -117 }, OperatorInfo: { Title: 'Electrify America' }, Connections: [{ PowerKW: 350 }] }
-    const opts = { networkContains: 'Electrify America', minPowerKw: 350, radiusMiles: 30, maxPerSample: 50 }
-    const samples = [{ lat: 44, lng: -117 }, { lat: 45, lng: -118 }]
+  const eaPoi = { ID: 201, OperatorID: 3318, AddressInfo: { Title: 'EA Site', Latitude: 44, Longitude: -117 }, Connections: [{ PowerKW: 350 }] }
+  const opts = { operatorIds: [3318], minPowerKw: 350, radiusMiles: 30, maxPerSample: 50 }
+  const samples = [{ lat: 44, lng: -117 }, { lat: 45, lng: -118 }]
 
+  it('skips failed samples and returns successful ones', async () => {
     vi.stubGlobal('fetch', vi.fn()
       .mockResolvedValueOnce({ ok: true, json: async () => [eaPoi] })
       .mockResolvedValueOnce({ ok: false })
@@ -56,10 +57,6 @@ describe('fetchChargersAlongRoute', () => {
   })
 
   it('dedupes results across samples', async () => {
-    const eaPoi = { ID: 201, AddressInfo: { Title: 'EA Site', Latitude: 44, Longitude: -117 }, OperatorInfo: { Title: 'Electrify America' }, Connections: [{ PowerKW: 350 }] }
-    const opts = { networkContains: 'Electrify America', minPowerKw: 350, radiusMiles: 30, maxPerSample: 50 }
-    const samples = [{ lat: 44, lng: -117 }, { lat: 45, lng: -118 }]
-
     vi.stubGlobal('fetch', vi.fn()
       .mockResolvedValueOnce({ ok: true, json: async () => [eaPoi] })
       .mockResolvedValueOnce({ ok: true, json: async () => [eaPoi] })
@@ -68,5 +65,14 @@ describe('fetchChargersAlongRoute', () => {
     const result = await fetchChargersAlongRoute(samples, 'test-key', opts)
     expect(result).toHaveLength(1)
     expect(result[0].id).toBe('201')
+  })
+
+  it('passes the operator id filter to the OCM request', async () => {
+    const spy = vi.fn().mockResolvedValue({ ok: true, json: async () => [eaPoi] })
+    vi.stubGlobal('fetch', spy)
+    await fetchChargersAlongRoute([{ lat: 44, lng: -117 }], 'test-key', opts)
+    expect(spy).toHaveBeenCalled()
+    const url = String(spy.mock.calls[0][0])
+    expect(url).toContain('operatorid=3318')
   })
 })

@@ -17,7 +17,7 @@ describe('settings', () => {
   it('returns defaults when storage is empty', () => {
     const s = loadSettings(memoryStorage())
     expect(s.minPowerKw).toBe(350)
-    expect(s.networkContains).toBe('Electrify America')
+    expect(s.operatorIds).toEqual([3318, 3400])
     expect(s.planningSpeed).toBe(70)
     expect(s.efficiency.length).toBe(5)
     expect(s.range).toEqual({ startPct: 100, chargeToPct: 80, reservePct: 10 })

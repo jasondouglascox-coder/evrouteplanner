@@ -6,8 +6,8 @@ const origin: GeoResult = { label: 'Washougal', lat: 45.58, lng: -122.35 }
 const dest: GeoResult = { label: 'SLC', lat: 40.76, lng: -111.89 }
 
 const chargers: AnnotatedCharger[] = [
-  { id: 'b', name: 'Twin Falls', network: 'Electrify America', maxPowerKw: 350, lat: 42.56, lng: -114.46, detourMiles: 0.3, routePositionMeters: 500000 },
-  { id: 'a', name: 'Baker City', network: 'Electrify America', maxPowerKw: 350, lat: 44.77, lng: -117.83, detourMiles: 1.1, routePositionMeters: 250000 },
+  { id: 'b', name: 'Twin Falls', network: 'Electrify America', operatorId: 3318, maxPowerKw: 350, lat: 42.56, lng: -114.46, detourMiles: 0.3, routePositionMeters: 500000 },
+  { id: 'a', name: 'Baker City', network: 'Electrify America', operatorId: 3318, maxPowerKw: 350, lat: 44.77, lng: -117.83, detourMiles: 1.1, routePositionMeters: 250000 },
 ]
 
 describe('orderStops', () => {

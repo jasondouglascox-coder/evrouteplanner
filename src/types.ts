@@ -13,6 +13,7 @@ export interface Charger {
   id: string
   name: string
   network: string
+  operatorId: number
   maxPowerKw: number
   lat: number
   lng: number

@@ -24,6 +24,17 @@ describe('parsePhoton', () => {
     const r = parsePhoton({ features: [{ geometry: { coordinates: [-100, 40] }, properties: { name: 'Foo', city: 'Bar' } }] })
     expect(r[0].label).toBe('Foo, Bar')
   })
+  it('keeps only US/CA/MX results and drops other countries', () => {
+    const r = parsePhoton({
+      features: [
+        { geometry: { coordinates: [-100, 40] }, properties: { name: 'US Town', countrycode: 'US' } },
+        { geometry: { coordinates: [-79, 43] }, properties: { name: 'CA Town', countrycode: 'CA' } },
+        { geometry: { coordinates: [-99, 19] }, properties: { name: 'MX Town', countrycode: 'MX' } },
+        { geometry: { coordinates: [0, 51] }, properties: { name: 'London', countrycode: 'GB' } },
+      ],
+    })
+    expect(r.map((x) => x.label)).toEqual(['US Town', 'CA Town', 'MX Town'])
+  })
 })
 
 describe('searchAddress', () => {
