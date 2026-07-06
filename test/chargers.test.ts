@@ -1,7 +1,7 @@
-import { describe, it, expect, vi, afterEach } from 'vitest'
+import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { mapPoi, filterChargers, dedupeChargers, fetchChargersAlongRoute, type OcmPoi } from '../src/lib/chargers'
+import { mapPoi, filterChargers, dedupeChargers, fetchChargersAlongRoute, clearChargerCache, type OcmPoi } from '../src/lib/chargers'
 
 const fixture: OcmPoi[] = JSON.parse(
   readFileSync(fileURLToPath(new URL('./fixtures/ocm-sample.json', import.meta.url)), 'utf-8'),
@@ -37,6 +37,7 @@ describe('dedupeChargers', () => {
 })
 
 describe('fetchChargersAlongRoute', () => {
+  beforeEach(() => clearChargerCache())
   afterEach(() => {
     vi.unstubAllGlobals()
   })
@@ -74,5 +75,13 @@ describe('fetchChargersAlongRoute', () => {
     expect(spy).toHaveBeenCalled()
     const url = String(spy.mock.calls[0][0])
     expect(url).toContain('operatorid=3318')
+  })
+
+  it('caches by grid cell so overlapping samples are not re-fetched', async () => {
+    const spy = vi.fn().mockResolvedValue({ ok: true, json: async () => [eaPoi] })
+    vi.stubGlobal('fetch', spy)
+    // three samples within the same ~7-mi grid cell (round to 0.1 deg)
+    await fetchChargersAlongRoute([{ lat: 44.01, lng: -117.02 }, { lat: 44.03, lng: -117.04 }, { lat: 44.02, lng: -117.01 }], 'k', opts)
+    expect(spy).toHaveBeenCalledTimes(1)
   })
 })

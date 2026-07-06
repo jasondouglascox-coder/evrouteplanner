@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { milesPerPercentForSpeed, legRangeMiles, evaluateLegs } from '../src/lib/range'
+import { milesPerPercentForSpeed, legRangeMiles, evaluateTrip, type TripLeg } from '../src/lib/range'
 import type { EfficiencyRow, RangeConfig } from '../src/types'
 
 const table: EfficiencyRow[] = [
@@ -40,18 +40,40 @@ describe('legRangeMiles', () => {
   })
 })
 
-describe('evaluateLegs', () => {
-  it('flags legs that exceed available range', () => {
-    const statuses = evaluateLegs([200, 150, 190], 2.55, cfg)
-    expect(statuses[0].exceeds).toBe(false) // 200 < 229.5
-    expect(statuses[1].exceeds).toBe(false) // 150 < 178.5
-    expect(statuses[2].exceeds).toBe(true) // 190 > 178.5
-    expect(statuses[2].rangeMiles).toBeCloseTo(178.5, 5)
+const leg = (distanceMiles: number, chargeAtEnd: boolean, speedMph = 70): TripLeg => ({
+  distanceMiles,
+  speedMph,
+  chargeAtEnd,
+})
+
+describe('evaluateTrip', () => {
+  it('resets range demand only at charge stops', () => {
+    // 70 mph -> 2.55 mi/%. First segment available = (100-10)=90%.
+    // leg1 200 mi -> 78.4%, ok. leg1 ends at a charge -> reset, available=(80-10)=70%.
+    // leg2 190 mi -> 74.5% > 70% -> exceeds.
+    const evals = evaluateTrip([leg(200, true), leg(190, false)], table, cfg)
+    expect(evals[0].exceeds).toBe(false)
+    expect(evals[1].exceeds).toBe(true)
   })
-  it('does not flag a leg exactly equal to available range', () => {
-    // first-leg range = (100-10)*2.55 = 229.5
-    const rangeMiles = (cfg.startPct - cfg.reservePct) * 2.55
-    const statuses = evaluateLegs([rangeMiles], 2.55, cfg)
-    expect(statuses[0].exceeds).toBe(false)
+
+  it('accumulates demand across a pass-through stop (no charge)', () => {
+    // Washougal -> Point Defiance (no charge) -> Washougal, ~148 mi each.
+    // No reset at the middle stop: cumulative 296 mi / 2.55 = 116% > 90% by leg 2.
+    const evals = evaluateTrip([leg(148, false), leg(149, false)], table, cfg)
+    expect(evals[0].exceeds).toBe(false) // 148/2.55 = 58% < 90%
+    expect(evals[1].exceeds).toBe(true) // cumulative 116.5% > 90%
+  })
+
+  it('marking the middle stop as a charge stop clears the warning', () => {
+    const evals = evaluateTrip([leg(148, true), leg(149, false)], table, cfg)
+    expect(evals[0].exceeds).toBe(false)
+    expect(evals[1].exceeds).toBe(false) // leg2 measured from an 80% charge: 58.4% < 70%
+  })
+
+  it('uses each leg own speed for consumption', () => {
+    // Same distance, faster speed uses more battery %.
+    const slow = evaluateTrip([leg(200, false, 60)], table, cfg)[0]
+    const fast = evaluateTrip([leg(200, false, 80)], table, cfg)[0]
+    expect(fast.consumedPct).toBeGreaterThan(slow.consumedPct)
   })
 })

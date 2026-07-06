@@ -24,16 +24,48 @@ export function legRangeMiles(milesPerPercent: number, cfg: RangeConfig, isFirst
   return usablePct * milesPerPercent
 }
 
-export interface LegStatus {
-  index: number
+// One leg of the planned trip: its distance, the cruising speed to assume for it,
+// and whether the battery is recharged at the stop it ends at.
+export interface TripLeg {
   distanceMiles: number
-  rangeMiles: number
-  exceeds: boolean
+  speedMph: number
+  chargeAtEnd: boolean
 }
 
-export function evaluateLegs(legMiles: number[], milesPerPercent: number, cfg: RangeConfig): LegStatus[] {
-  return legMiles.map((d, i) => {
-    const rangeMiles = legRangeMiles(milesPerPercent, cfg, i === 0)
-    return { index: i, distanceMiles: d, rangeMiles, exceeds: d > rangeMiles }
-  })
+export interface LegEval {
+  index: number
+  distanceMiles: number
+  consumedPct: number // battery % this leg uses
+  cumulativePct: number // battery % used since the last charge point (incl. this leg)
+  availablePct: number // usable battery % for the current charge segment
+  exceeds: boolean // cumulative demand exceeds what's available since last charge
+}
+
+// Percent-based range check. Battery starts full (startPct); each leg consumes
+// distance / mi-per-% at that leg's speed. Demand accumulates across pass-through
+// stops and only resets when a leg ends at a charge point (recharged to chargeToPct).
+// Reserve is kept in the tank, so usable % = (startPct|chargeToPct) - reservePct.
+export function evaluateTrip(legs: TripLeg[], table: EfficiencyRow[], cfg: RangeConfig): LegEval[] {
+  const out: LegEval[] = []
+  let available = cfg.startPct - cfg.reservePct
+  let cumulative = 0
+  for (let i = 0; i < legs.length; i++) {
+    const leg = legs[i]
+    const mpp = milesPerPercentForSpeed(table, leg.speedMph)
+    const consumed = mpp > 0 ? leg.distanceMiles / mpp : Infinity
+    cumulative += consumed
+    out.push({
+      index: i,
+      distanceMiles: leg.distanceMiles,
+      consumedPct: consumed,
+      cumulativePct: cumulative,
+      availablePct: available,
+      exceeds: cumulative > available + 1e-9,
+    })
+    if (leg.chargeAtEnd) {
+      cumulative = 0
+      available = cfg.chargeToPct - cfg.reservePct
+    }
+  }
+  return out
 }

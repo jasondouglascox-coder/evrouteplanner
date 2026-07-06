@@ -11,6 +11,7 @@ export interface OrderedIntermediate {
   lng: number
   routePositionMeters: number
   chargerId?: string
+  charge?: boolean
 }
 
 export function orderStops(
@@ -20,11 +21,12 @@ export function orderStops(
 ): TripStop[] {
   const mids: TripStop[] = [...intermediates]
     .sort((a, b) => a.routePositionMeters - b.routePositionMeters)
-    .map((i) => ({ label: i.label, lat: i.lat, lng: i.lng, chargerId: i.chargerId }))
+    .map((i) => ({ label: i.label, lat: i.lat, lng: i.lng, chargerId: i.chargerId, charge: i.charge }))
   return [
-    { label: origin.label, lat: origin.lat, lng: origin.lng },
+    // Origin starts full; destination is the end (no charge needed).
+    { label: origin.label, lat: origin.lat, lng: origin.lng, charge: true },
     ...mids,
-    { label: destination.label, lat: destination.lat, lng: destination.lng },
+    { label: destination.label, lat: destination.lat, lng: destination.lng, charge: false },
   ]
 }
 

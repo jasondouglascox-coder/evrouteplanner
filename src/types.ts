@@ -31,4 +31,7 @@ export interface TripStop {
   lat: number
   lng: number
   chargerId?: string
+  // Whether the battery is recharged at this stop. Chargers are always true;
+  // manual stops default false (pass-through) with a per-stop toggle.
+  charge?: boolean
 }

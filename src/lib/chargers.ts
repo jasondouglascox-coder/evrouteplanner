@@ -57,13 +57,69 @@ export function dedupeChargers(chargers: Charger[]): Charger[] {
   return out
 }
 
+// Aggressive caching of per-sample charger results. OpenChargeMap is slow, and
+// overlapping routes (especially out-and-backs) query the same areas repeatedly.
+// Samples are rounded to a ~7-mile grid so nearby/overlapping queries share a key.
+interface CacheEntry { t: number; chargers: Charger[] }
+const memCache = new Map<string, CacheEntry>()
+const CACHE_TTL_MS = 24 * 60 * 60 * 1000
+const CACHE_PREFIX = 'ev-map-ocm:'
+
+export function clearChargerCache(): void {
+  memCache.clear()
+}
+
+function cacheKey(lat: number, lng: number, opts: { operatorIds: number[]; minPowerKw: number; radiusMiles: number }): string {
+  const ops = [...opts.operatorIds].sort((a, b) => a - b).join(',')
+  return `${lat.toFixed(1)},${lng.toFixed(1)}|${ops}|${opts.radiusMiles}|${opts.minPowerKw}`
+}
+
+function readCache(key: string): Charger[] | null {
+  const mem = memCache.get(key)
+  if (mem && Date.now() - mem.t < CACHE_TTL_MS) return mem.chargers
+  try {
+    if (typeof localStorage !== 'undefined') {
+      const raw = localStorage.getItem(CACHE_PREFIX + key)
+      if (raw) {
+        const e = JSON.parse(raw) as CacheEntry
+        if (Date.now() - e.t < CACHE_TTL_MS) {
+          memCache.set(key, e)
+          return e.chargers
+        }
+      }
+    }
+  } catch {
+    // ignore cache read errors
+  }
+  return null
+}
+
+function writeCache(key: string, chargers: Charger[]): void {
+  const entry: CacheEntry = { t: Date.now(), chargers }
+  memCache.set(key, entry)
+  try {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(CACHE_PREFIX + key, JSON.stringify(entry))
+    }
+  } catch {
+    // ignore quota/serialization errors
+  }
+}
+
 export async function fetchChargersAlongRoute(
   samples: LatLng[],
   apiKey: string,
   opts: { operatorIds: number[]; minPowerKw: number; radiusMiles: number; maxPerSample: number },
 ): Promise<Charger[]> {
-  const all: Charger[] = []
+  const byKey = new Map<string, Charger[]>()
   for (const s of samples) {
+    const key = cacheKey(s.lat, s.lng, opts)
+    if (byKey.has(key)) continue // already handled this grid cell this run
+    const cached = readCache(key)
+    if (cached) {
+      byKey.set(key, cached)
+      continue
+    }
     const url =
       `https://api.openchargemap.io/v3/poi?output=json&key=${encodeURIComponent(apiKey)}` +
       `&latitude=${s.lat}&longitude=${s.lng}&distance=${opts.radiusMiles}&distanceunit=Miles` +
@@ -73,10 +129,12 @@ export async function fetchChargersAlongRoute(
       const res = await fetch(url)
       if (!res.ok) continue
       const pois = (await res.json()) as OcmPoi[]
-      all.push(...filterChargers(pois, opts))
+      const chargers = filterChargers(pois, opts)
+      writeCache(key, chargers)
+      byKey.set(key, chargers)
     } catch {
       // skip failed sample, keep going
     }
   }
-  return dedupeChargers(all)
+  return dedupeChargers([...byKey.values()].flat())
 }
